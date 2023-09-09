@@ -710,25 +710,33 @@ const hasParent = (node, compareNodes) => {
   return false
 }
 
-// checks if a given node is a descendant of any of the nodes provided in the
-// compareNodes array
-const hasAscendant = (node, compareNodes, seen = new Set()) => {
-  // TODO (future) loop over ancestry property
-  if (hasParent(node, compareNodes)) {
+// checks if a given node is a child of the provided compareNode
+const isChild = (node, compareNode) => {
+  for (const edge of compareNode.edgesOut.values()) {
+    if (edge.to === node || edge.to?.target === node) {
+      return true
+    }
+  }
+  return false
+}
+
+// checks if a given node is the descendant of the provided compareNode
+const isDescendant = (node, compareNode, seen = new Set()) => {
+  // Direct child
+  if (isChild(node, compareNode)) {
     return true
   }
 
-  if (node.isTop && node.resolveParent) {
-    return hasAscendant(node.resolveParent, compareNodes)
-  }
-  for (const edge of node.edgesIn) {
-    // TODO Need a test with an infinite loop
+  // Loop through edgesOut of compareNode to see if there is a path to node
+  for (const edge of compareNode.edgesOut.values()) {
     if (seen.has(edge)) {
       continue
     }
     seen.add(edge)
-    if (edge && edge.from && hasAscendant(edge.from, compareNodes, seen)) {
-      return true
+    if (edge.to) {
+      if (isDescendant(node, edge.to.isLink ? edge.to.target : edge.to, seen)) {
+        return true
+      }
     }
   }
   return false
@@ -741,7 +749,9 @@ const combinators = {
   },
   // any descendant
   ' ' (prevResults, nextResults) {
-    return nextResults.filter(node => hasAscendant(node, prevResults))
+    return nextResults.filter(node =>
+      prevResults.some(compareNode => isDescendant(node, compareNode))
+    )
   },
   // sibling
   '~' (prevResults, nextResults) {
